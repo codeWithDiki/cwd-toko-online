@@ -4,7 +4,7 @@ use App\Models\Product;
 use CodeWithDiki\PaymentModule\Facades\PaymentModule;
 use CodeWithDiki\ProductModule\Models\ProductColor;
 use CodeWithDiki\ProductModule\Models\ProductSize;
-use CodeWithDiki\ProductModule\Models\ProductVariant;
+use App\Models\ProductVariant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -74,6 +74,9 @@ new class extends Component
 
 };
 ?>
+@section("meta")
+{!!  seo()->for($product) !!}
+@endsection
 @section("title", "{$product->name} - {$siteSettings->site_name}")
 <div class="container mx-auto py-6 px-2 space-y-9">
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-12">

@@ -1,12 +1,11 @@
 <?php
 
 namespace App\Models;
-use CodeWithDiki\ProductModule\Models\Product as BaseProduct;
-use Illuminate\Support\Facades\Storage;
+use CodeWithDiki\ProductModule\Models\ProductVariant as BaseProduct;
 use RalphJSmit\Laravel\SEO\Support\HasSEO;
 use RalphJSmit\Laravel\SEO\Support\SEOData;
 
-class Product extends BaseProduct
+class ProductVariant extends BaseProduct
 {
     use HasSEO;
 
@@ -16,7 +15,7 @@ class Product extends BaseProduct
         return new SEOData(
             title: $this->name,
             description: $this->description,
-            image: $this?->primary_image_url,
+            image: $this?->product?->primary_image_url,
         );
     }
 
