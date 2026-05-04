@@ -1,0 +1,32 @@
+@import 'tailwindcss';
+
+@import "../../vendor/filament/support/resources/css/index.css";
+@import "../../vendor/filament/notifications/resources/css/index.css";
+@import "../../vendor/filament/tables/resources/css/index.css";
+@import "../../vendor/filament/forms/resources/css/index.css";
+@import "../../vendor/filament/schemas/resources/css/index.css";
+
+@source '../views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source "../../vendor/filament/**/*.blade.php";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@font-face {
+  font-family: 'ds-digital';
+  src: url('/fonts/ds_digital/DS-DIGI.ttf') format('truetype'); /* use 'truetype' for .ttf files */
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-ds-digital: 'ds-digital', monospace;
+}
+
+@layer components {
+    
+}
+
+

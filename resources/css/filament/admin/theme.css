@@ -1,0 +1,7 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+@import '../../../../vendor/awcodes/mason/resources/css/plugin.css';
+@import '../../app.css';
+
+@source '../../../../vendor/awcodes/mason/resources/**/*.blade.php';
+@source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/filament/**/*';
