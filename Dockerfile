@@ -99,6 +99,7 @@ RUN pecl install redis \
     && docker-php-ext-enable redis
 
 COPY docker/php/php.ini /usr/local/etc/php/conf.d/99-custom.ini
+COPY docker/php/www.conf /usr/local/etc/php-fpm.d/zz-docker-listen.conf
 
 WORKDIR /var/www/html
 
