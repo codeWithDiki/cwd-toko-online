@@ -16,26 +16,11 @@ COPY composer.json composer.lock ./
 #   3. composer_auth secret — local docker compose, reads ./auth.json
 #   4. auth.json in build context — fallback for plain docker build
 ARG COMPOSER_AUTH=""
+COPY docker/composer-install.sh /composer-install.sh
+RUN chmod +x /composer-install.sh
 RUN --mount=type=secret,id=composer_auth,dst=/run/secrets/composer_auth,required=false \
     --mount=type=secret,id=build_env,dst=/run/secrets/build_env,required=false \
-    if [ -z "$COMPOSER_AUTH" ] && [ -f /run/secrets/build_env ]; then \
-        _val=$(grep -m1 '^COMPOSER_AUTH=' /run/secrets/build_env | cut -d= -f2-); \
-        _val=$(printf '%s' "$_val" | sed "s/^['\"]//;s/['\"]$//"); \
-        [ -n "$_val" ] && export COMPOSER_AUTH="$_val"; \
-    fi; \
-    if [ -z "$COMPOSER_AUTH" ] && [ -s /run/secrets/composer_auth ]; then \
-        export COMPOSER_AUTH="$(cat /run/secrets/composer_auth)"; \
-    fi; \
-    if [ -z "$COMPOSER_AUTH" ] && [ -s auth.json ]; then \
-        export COMPOSER_AUTH="$(cat auth.json)"; \
-    fi; \
-    composer install \
-    --no-dev \
-    --optimize-autoloader \
-    --no-interaction \
-    --no-scripts \
-    --prefer-dist \
-    --ignore-platform-reqs
+    /composer-install.sh
 
 # =============================================================================
 # Stage 2: Build Vite frontend assets
