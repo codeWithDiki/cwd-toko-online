@@ -10,6 +10,7 @@ Aplikasi e-commerce berbasis **Laravel 13** yang dibangun dengan stack modern: *
 - [Tech Stack](#tech-stack)
 - [Prasyarat](#prasyarat)
 - [Instalasi](#instalasi)
+- [Instalasi via Docker](#instalasi-via-docker)
 - [Konfigurasi Environment](#konfigurasi-environment)
 - [Menjalankan Aplikasi](#menjalankan-aplikasi)
 - [Akun Default](#akun-default)
@@ -129,6 +130,168 @@ cp .env.example .env
 
 ```bash
 php artisan key:generate
+```
+
+---
+
+## Instalasi via Docker
+
+Cara alternatif menjalankan aplikasi tanpa perlu menginstall PHP, Node.js, atau Redis secara lokal. Stack yang berjalan:
+
+| Service | Keterangan |
+|---|---|
+| `app` | PHP-FPM — menjalankan aplikasi Laravel |
+| `nginx` | Web server, melayani static files & proxy ke PHP-FPM |
+| `horizon` | Laravel Horizon — queue worker |
+| `reverb` | Laravel Reverb — WebSocket server |
+| `redis` | Cache, sessions, dan queue backend |
+
+### Prasyarat Docker
+
+- **Docker Desktop** >= 4.x (sudah termasuk BuildKit)
+- **Docker Compose** v2
+
+### 1. Clone Repositori
+
+```bash
+git clone <url-repositori> toko-online
+cd toko-online
+```
+
+### 2. Siapkan Kredensial Private Package
+
+Paket `codewithdiki/*` di-host di `https://dikiakbarasyidiq.dev`. Buat file `auth.json` di root project dengan **license key** yang didapat dari [https://dikiakbarasyidiq.dev/auth/register](https://dikiakbarasyidiq.dev/auth/register):
+
+```bash
+composer config bearer.dikiakbarasyidiq.dev <license_key>
+```
+
+Perintah tersebut akan membuat (atau mengupdate) file `auth.json` seperti ini:
+
+```json
+{
+    "bearer": {
+        "dikiakbarasyidiq.dev": "<license_key>"
+    }
+}
+```
+
+> File ini sudah masuk `.gitignore` dan `.dockerignore` — **jangan pernah di-commit**.
+
+### 3. Siapkan File Environment
+
+```bash
+cp .env.example .env
+```
+
+Lalu buka `.env` dan sesuaikan nilai berikut untuk Docker:
+
+```dotenv
+APP_KEY=            # diisi di langkah berikutnya
+APP_URL=http://localhost
+
+# Redis — gunakan nama service, bukan 127.0.0.1
+REDIS_HOST=redis
+
+# Queue & cache — pakai Redis
+QUEUE_CONNECTION=redis
+CACHE_STORE=redis
+SESSION_DRIVER=redis
+
+# Broadcast via Reverb
+BROADCAST_CONNECTION=reverb
+REVERB_APP_ID=1001
+REVERB_APP_KEY=laravel-herd
+REVERB_APP_SECRET=secret
+
+# Reverb server (di dalam container)
+REVERB_SERVER_HOST=0.0.0.0
+REVERB_SERVER_PORT=8080
+
+# Reverb external — diakses browser lewat Nginx port 80
+REVERB_HOST=localhost
+REVERB_PORT=80
+REVERB_SCHEME=http
+
+# Midtrans
+MIDTRANS_SERVER_KEY=your-server-key
+MIDTRANS_CLIENT_KEY=your-client-key
+MIDTRANS_IS_PRODUCTION=false
+MIDTRANS_IS_SANITIZED=true
+MIDTRANS_IS_3DS=false
+```
+
+### 4. Build & Jalankan
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+BuildKit akan otomatis membaca `auth.json` sebagai secret saat instalasi Composer — token tidak pernah tersimpan di dalam image layer.
+
+> Kalau deploy ke domain tertentu (bukan `localhost`), pass domain sebagai build arg agar URL Reverb ikut terbake ke dalam aset JS:
+> ```bash
+> docker compose build --build-arg VITE_REVERB_HOST=yourdomain.com
+> ```
+
+### 5. Generate Application Key
+
+```bash
+docker compose exec app php artisan key:generate
+```
+
+### 6. Migrasi & Seed Database
+
+```bash
+# Jalankan migrasi
+docker compose exec app php artisan migrate
+
+# Seed role
+docker compose exec app php artisan db:seed --class=RoleSeeder
+
+# Seed data contoh
+docker compose exec app php artisan db:seed --class=DatabaseSeeder
+```
+
+### 7. Buat Akun Super Admin
+
+```bash
+docker compose exec app php artisan make:filament-user
+```
+
+### 8. Setup Filament Shield
+
+```bash
+docker compose exec app php artisan shield:setup
+```
+
+Aplikasi berjalan di **http://localhost**, panel admin di **http://localhost/admin**.
+
+### Perintah Docker Berguna
+
+```bash
+# Lihat status semua service
+docker compose ps
+
+# Tail log semua service
+docker compose logs -f
+
+# Tail log per service
+docker compose logs -f horizon
+docker compose logs -f reverb
+
+# Restart service tertentu
+docker compose restart horizon
+
+# Masuk ke shell container app
+docker compose exec app sh
+
+# Hentikan semua service
+docker compose down
+
+# Hentikan dan hapus volume (reset database)
+docker compose down -v
 ```
 
 ---
