@@ -41,6 +41,14 @@ server {
     client_max_body_size 100M;
     fastcgi_read_timeout 120s;
 
+    # Health check — returns 200 immediately without hitting PHP-FPM.
+    # Use this as the liveness/readiness probe endpoint in Helipod / K8s.
+    location = /healthz {
+        access_log off;
+        return 200 "ok";
+        add_header Content-Type text/plain;
+    }
+
     # Reverb WebSocket
     location ~ ^/(app|apps)/ {
         set $reverb_upstream "${NGINX_REVERB_HOST}:${NGINX_REVERB_PORT}";
