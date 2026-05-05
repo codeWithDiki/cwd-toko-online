@@ -12,7 +12,7 @@ COPY composer.json composer.lock ./
 # Mount auth.json as a BuildKit secret so the token is NEVER baked into any layer.
 # Build with: docker compose build --secret id=composer_auth,src=auth.json
 # auth.json should contain credentials for dikiakbarasyidiq.dev (or your Satis URL).
-RUN --mount=type=secret,id=composer_auth,target=/app/auth.json \
+RUN --mount=type=secret,id=composer_auth,target=auth.json \
     composer install \
     --no-dev \
     --optimize-autoloader \
