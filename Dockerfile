@@ -1,6 +1,28 @@
 # syntax=docker/dockerfile:1
 # =============================================================================
-# Stage 1: Build Vite frontend assets
+# Stage 1: Install Composer dependencies (no dev)
+# Must run first — Vite needs vendor/filament CSS at build time.
+# =============================================================================
+FROM composer:2 AS vendor
+
+WORKDIR /app
+
+COPY composer.json composer.lock ./
+
+# Mount auth.json as a BuildKit secret so the token is NEVER baked into any layer.
+# Build with: docker compose build --secret id=composer_auth,src=auth.json
+# auth.json should contain credentials for dikiakbarasyidiq.dev (or your Satis URL).
+RUN --mount=type=secret,id=composer_auth,target=auth.json \
+    composer install \
+    --no-dev \
+    --optimize-autoloader \
+    --no-interaction \
+    --no-scripts \
+    --prefer-dist \
+    --ignore-platform-reqs
+
+# =============================================================================
+# Stage 2: Build Vite frontend assets
 # =============================================================================
 FROM node:22-alpine AS frontend
 
@@ -10,6 +32,9 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+
+# Filament CSS files are imported from vendor/ — copy them in from the vendor stage.
+COPY --from=vendor /app/vendor ./vendor
 
 # These get baked into the JS bundle at build time.
 # Reverb is proxied via Nginx on port 80 — no separate port needed from the browser.
@@ -26,26 +51,6 @@ ENV VITE_APP_NAME=$VITE_APP_NAME \
     VITE_REVERB_SCHEME=$VITE_REVERB_SCHEME
 
 RUN npm run build
-
-# =============================================================================
-# Stage 2: Install Composer dependencies (no dev)
-# =============================================================================
-FROM composer:2 AS vendor
-
-WORKDIR /app
-
-COPY composer.json composer.lock ./
-
-# Mount auth.json as a BuildKit secret so the token is NEVER baked into any layer.
-# Build with: docker compose build --secret id=composer_auth,src=auth.json
-# auth.json should contain credentials for repo.packagist.com (or your Satis URL).
-RUN --mount=type=secret,id=composer_auth,target=/root/.composer/auth.json \
-    composer install \
-    --no-dev \
-    --optimize-autoloader \
-    --no-interaction \
-    --no-scripts \
-    --prefer-dist
 
 # =============================================================================
 # Stage 3: PHP-FPM runtime (used by app, horizon, reverb services)
@@ -101,8 +106,10 @@ COPY --chown=www-data:www-data . .
 COPY --from=vendor --chown=www-data:www-data /app/vendor ./vendor
 COPY --from=frontend --chown=www-data:www-data /app/public/build ./public/build
 
-RUN chmod -R 775 /var/www/html/storage \
-    && chmod -R 775 /var/www/html/bootstrap/cache
+RUN mkdir -p /var/www/html/bootstrap/cache \
+    && chmod -R 775 /var/www/html/storage \
+    && chmod -R 775 /var/www/html/bootstrap/cache \
+    && chown -R www-data:www-data /var/www/html/bootstrap/cache
 
 COPY docker/php/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

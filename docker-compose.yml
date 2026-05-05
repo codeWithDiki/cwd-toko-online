@@ -1,8 +1,10 @@
 secrets:
-  # auth.json must exist locally (never commit it!). Example:
+  # auth.json must exist locally — generate with:
+  #   composer config bearer.dikiakbarasyidiq.dev <license_key>
+  # Format:
   # {
-  #   "http-basic": {
-  #     "repo.packagist.com": { "username": "token", "password": "YOUR_TOKEN" }
+  #   "bearer": {
+  #     "dikiakbarasyidiq.dev": "<license_key>"
   #   }
   # }
   composer_auth:
@@ -64,6 +66,8 @@ services:
     build:
       context: .
       target: webserver
+      secrets:
+        - composer_auth
     ports:
       - "80:80"
     volumes:
@@ -81,6 +85,8 @@ services:
     build:
       context: .
       target: runtime
+      secrets:
+        - composer_auth
     env_file: .env
     environment:
       CONTAINER_ROLE: horizon
@@ -102,6 +108,8 @@ services:
     build:
       context: .
       target: runtime
+      secrets:
+        - composer_auth
     env_file: .env
     environment:
       CONTAINER_ROLE: reverb

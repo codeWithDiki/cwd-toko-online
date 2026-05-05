@@ -26,7 +26,6 @@ pint.json
 README.md
 *.md
 
-docker
 docker-compose*.yml
 Dockerfile
 
