@@ -124,6 +124,6 @@ COPY docker/php/entrypoint-standalone.sh /entrypoint-standalone.sh
 RUN chmod +x /entrypoint-standalone.sh
 
 ENTRYPOINT ["/entrypoint-standalone.sh"]
-HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=5 \
-    CMD wget -qO- http://localhost || exit 1
+HEALTHCHECK --interval=15s --timeout=5s --start-period=90s --retries=5 \
+    CMD curl -sf http://localhost/healthz || exit 1
 EXPOSE 80

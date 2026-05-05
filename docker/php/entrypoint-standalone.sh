@@ -47,16 +47,10 @@ if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Start Redis in background for use during Laravel bootstrap
-# Supervisord will take over managing it after exec.
+# NOTE: No bootstrap Redis needed — artisan migrate/cache/link commands
+# do not connect to Redis. Supervisord will start Redis (priority=10)
+# before PHP-FPM (priority=20) and other services.
 # ---------------------------------------------------------------------------
-echo "[standalone] Starting Redis (bootstrap)..."
-redis-server --daemonize yes --loglevel warning
-# Wait until Redis is ready
-until redis-cli ping 2>/dev/null | grep -q PONG; do
-    sleep 0.2
-done
-echo "[standalone] Redis ready."
 
 # ---------------------------------------------------------------------------
 # Laravel bootstrap
@@ -75,9 +69,6 @@ if [ "${APP_ENV}" = "production" ]; then
     php artisan event:cache
 fi
 
-# Stop the bootstrap Redis — supervisord will restart it as a managed process
-redis-cli shutdown nosave 2>/dev/null || true
-sleep 0.5
 
 # ---------------------------------------------------------------------------
 # Nginx config generation — all upstreams are localhost in standalone mode
