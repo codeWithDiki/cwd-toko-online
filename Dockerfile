@@ -18,17 +18,17 @@ COPY composer.json composer.lock ./
 ARG COMPOSER_AUTH=""
 RUN --mount=type=secret,id=composer_auth,dst=/run/secrets/composer_auth,required=false \
     --mount=type=secret,id=build_env,dst=/run/secrets/build_env,required=false \
-    if [ -n "$COMPOSER_AUTH" ]; then \
-        : ; \
-    elif [ -f /run/secrets/build_env ] && grep -q '^COMPOSER_AUTH=' /run/secrets/build_env; then \
-        export COMPOSER_AUTH="$(grep '^COMPOSER_AUTH=' /run/secrets/build_env \
-            | sed "s/^COMPOSER_AUTH=//" \
-            | sed "s/^'\(.*\)'$/\1/; s/^\"\(.*\)\"$/\1/")" ; \
-    elif [ -f /run/secrets/composer_auth ] && [ -s /run/secrets/composer_auth ]; then \
+    if [ -z "$COMPOSER_AUTH" ] && [ -f /run/secrets/build_env ]; then \
+        _val=$(grep -m1 '^COMPOSER_AUTH=' /run/secrets/build_env | cut -d= -f2-); \
+        _val=$(printf '%s' "$_val" | sed "s/^['\"]//;s/['\"]$//"); \
+        [ -n "$_val" ] && export COMPOSER_AUTH="$_val"; \
+    fi; \
+    if [ -z "$COMPOSER_AUTH" ] && [ -s /run/secrets/composer_auth ]; then \
         export COMPOSER_AUTH="$(cat /run/secrets/composer_auth)"; \
-    elif [ -f auth.json ] && [ -s auth.json ]; then \
+    fi; \
+    if [ -z "$COMPOSER_AUTH" ] && [ -s auth.json ]; then \
         export COMPOSER_AUTH="$(cat auth.json)"; \
-    fi && \
+    fi; \
     composer install \
     --no-dev \
     --optimize-autoloader \
