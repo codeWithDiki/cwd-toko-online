@@ -10,16 +10,20 @@ WORKDIR /app
 COPY composer.json composer.lock ./
 
 # Auth is resolved in this priority order:
-#   1. COMPOSER_AUTH build ARG — for platforms like Helipod that inject secrets
-#      as build args. Set it to the raw JSON content of auth.json:
-#      {"bearer":{"dikiakbarasyidiq.dev":"<license_key>"}}
-#   2. BuildKit secret file (local / docker compose) — never baked into layers
-#      Secret id=composer_auth maps to ./auth.json via docker-compose.yml
-#   3. auth.json copied into the build context (fallback for plain docker build)
+#   1. COMPOSER_AUTH build ARG — explicit override (docker compose / CI)
+#   2. build_env secret (Helipod) — Helipack auto-injects all dashboard variables
+#      as a BuildKit secret mounted at /run/secrets/build_env (.env file format)
+#   3. composer_auth secret — local docker compose, reads ./auth.json
+#   4. auth.json in build context — fallback for plain docker build
 ARG COMPOSER_AUTH=""
-RUN --mount=type=secret,id=composer_auth,dst=/run/secrets/composer_auth \
+RUN --mount=type=secret,id=composer_auth,dst=/run/secrets/composer_auth,required=false \
+    --mount=type=secret,id=build_env,dst=/run/secrets/build_env,required=false \
     if [ -n "$COMPOSER_AUTH" ]; then \
         : ; \
+    elif [ -f /run/secrets/build_env ] && grep -q '^COMPOSER_AUTH=' /run/secrets/build_env; then \
+        export COMPOSER_AUTH="$(grep '^COMPOSER_AUTH=' /run/secrets/build_env \
+            | sed "s/^COMPOSER_AUTH=//" \
+            | sed "s/^'\(.*\)'$/\1/; s/^\"\(.*\)\"$/\1/")" ; \
     elif [ -f /run/secrets/composer_auth ] && [ -s /run/secrets/composer_auth ]; then \
         export COMPOSER_AUTH="$(cat /run/secrets/composer_auth)"; \
     elif [ -f auth.json ] && [ -s auth.json ]; then \
