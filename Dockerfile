@@ -55,7 +55,7 @@ RUN npm run build
 # =============================================================================
 # Stage 3: PHP-FPM runtime (used by app, horizon, reverb services)
 # =============================================================================
-FROM php:8.3-fpm-bookworm AS runtime
+FROM php:8.4-fpm-bookworm AS runtime
 
 # System dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -106,6 +106,10 @@ COPY --chown=www-data:www-data . .
 COPY --from=vendor --chown=www-data:www-data /app/vendor ./vendor
 COPY --from=frontend --chown=www-data:www-data /app/public/build ./public/build
 
+# Store a copy of the build assets as the init source.
+# Entrypoint uses this to seed the shared public_build volume on first run.
+RUN cp -a /var/www/html/public/build /var/www/html/public/build_init
+
 RUN mkdir -p /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage \
     && chmod -R 775 /var/www/html/bootstrap/cache \
@@ -122,7 +126,18 @@ CMD ["php-fpm"]
 # =============================================================================
 FROM nginx:1.27-alpine AS webserver
 
-COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
+# envsubst is needed to process ssl.conf.template
+RUN apk add --no-cache gettext
 
-# Bake public assets into the nginx image so it can serve them directly
+# Copy nginx config templates and custom entrypoint
+COPY docker/nginx/templates /etc/nginx/templates
+COPY docker/nginx/entrypoint.sh /docker-entrypoint-nginx.sh
+RUN chmod +x /docker-entrypoint-nginx.sh
+
+# Copy static public files (css, fonts, favicons, etc.) from runtime.
+# public/build is intentionally excluded — it will be provided by the shared
+# public_build Docker volume (populated by the app container on startup).
 COPY --from=runtime /var/www/html/public /var/www/html/public
+RUN rm -rf /var/www/html/public/build /var/www/html/public/build_init
+
+ENTRYPOINT ["/docker-entrypoint-nginx.sh"]

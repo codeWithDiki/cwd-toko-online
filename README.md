@@ -11,6 +11,7 @@ Aplikasi e-commerce berbasis **Laravel 13** yang dibangun dengan stack modern: *
 - [Prasyarat](#prasyarat)
 - [Instalasi](#instalasi)
 - [Instalasi via Docker](#instalasi-via-docker)
+  - [Deploy Production dengan SSL](#deploy-production-dengan-ssl)
 - [Konfigurasi Environment](#konfigurasi-environment)
 - [Menjalankan Aplikasi](#menjalankan-aplikasi)
 - [Akun Default](#akun-default)
@@ -292,6 +293,94 @@ docker compose down
 
 # Hentikan dan hapus volume (reset database)
 docker compose down -v
+```
+
+---
+
+### Deploy Production dengan SSL
+
+Nginx akan otomatis switch ke mode HTTPS jika sertifikat Let's Encrypt sudah tersedia. Sertifikat dikelola oleh service `certbot` yang sudah termasuk dalam `docker-compose.yml`.
+
+#### 1. Sesuaikan `.env` untuk Production
+
+```dotenv
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://yourdomain.com
+APP_DOMAIN=yourdomain.com
+
+# Redis
+REDIS_HOST=redis
+QUEUE_CONNECTION=redis
+CACHE_STORE=redis
+SESSION_DRIVER=redis
+
+# Reverb — browser konek lewat Nginx port 443
+BROADCAST_CONNECTION=reverb
+REVERB_HOST=yourdomain.com
+REVERB_PORT=443
+REVERB_SCHEME=https
+REVERB_SERVER_HOST=0.0.0.0
+REVERB_SERVER_PORT=8080
+```
+
+#### 2. Build Image dengan Domain yang Benar
+
+Vite mem-bake URL Reverb ke dalam JS bundle pada saat build — pastikan `APP_DOMAIN` sudah diset di `.env` sebelum build:
+
+```bash
+docker compose build --no-cache
+```
+
+#### 3. Jalankan Stack (Mode HTTP Dulu)
+
+Nginx akan start dalam mode HTTP terlebih dahulu untuk melayani ACME challenge dari Let's Encrypt:
+
+```bash
+docker compose up -d
+```
+
+#### 4. Issue Sertifikat SSL
+
+```bash
+docker compose --profile ssl run --rm certbot certonly \
+    --webroot -w /var/www/certbot \
+    -d yourdomain.com \
+    --agree-tos \
+    --email admin@yourdomain.com
+```
+
+> Pastikan DNS domain sudah mengarah ke IP server sebelum menjalankan perintah ini.
+
+#### 5. Restart Nginx — Switch ke HTTPS
+
+Setelah sertifikat berhasil di-issue, restart Nginx. Entrypoint-nya akan mendeteksi sertifikat secara otomatis dan mengaktifkan konfigurasi HTTPS:
+
+```bash
+docker compose restart nginx
+```
+
+Aplikasi sekarang berjalan di **https://yourdomain.com**.
+
+#### 6. Auto-Renew Sertifikat
+
+Let's Encrypt sertifikat berlaku 90 hari. Tambahkan cron job di server untuk renew otomatis:
+
+```bash
+# Edit crontab
+crontab -e
+
+# Tambahkan baris berikut (renew tiap hari jam 03:00)
+0 3 * * * cd /path/to/toko-online && docker compose --profile ssl run --rm certbot renew && docker compose restart nginx
+```
+
+#### Alur Nginx Config
+
+```
+nginx start
+    └── /etc/letsencrypt/live/{domain}/fullchain.pem ada?
+            ├── Ya  → mode HTTPS (redirect HTTP → HTTPS, TLS 1.2/1.3)
+            └── Tidak → mode HTTP (melayani ACME challenge)
 ```
 
 ---

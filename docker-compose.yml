@@ -36,24 +36,27 @@ services:
       secrets:
         - composer_auth
       args:
-        # Reverb is proxied by Nginx on port 80, so browser connects to same host/port
+        # Diambil otomatis dari .env di project root
+        VITE_APP_NAME: ${APP_NAME:-CodeWithDiki Toko Online}
         VITE_REVERB_APP_KEY: ${REVERB_APP_KEY:-laravel-herd}
-        VITE_REVERB_HOST: ${APP_DOMAIN:-localhost}
-        VITE_REVERB_PORT: "80"
-        VITE_REVERB_SCHEME: "http"
+        VITE_REVERB_HOST: ${REVERB_HOST:-localhost}
+        VITE_REVERB_PORT: ${REVERB_PORT:-80}
+        VITE_REVERB_SCHEME: ${REVERB_SCHEME:-http}
     env_file: .env
     environment:
       CONTAINER_ROLE: app
-      # Override Redis host to the service name
       REDIS_HOST: redis
-      # Reverb external coordinates (what the browser/pusher client sees)
       REVERB_HOST: ${APP_DOMAIN:-localhost}
       REVERB_PORT: "80"
       REVERB_SCHEME: http
     volumes:
-      # Persist SQLite database and storage across restarts
-      - app_database:/var/www/html/database
       - app_storage:/var/www/html/storage
+      - public_build:/var/www/html/public/build
+    healthcheck:
+      test: ["CMD", "test", "-f", "/var/www/html/public/build/manifest.json"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
     depends_on:
       redis:
         condition: service_healthy
@@ -70,13 +73,41 @@ services:
         - composer_auth
     ports:
       - "80:80"
+      - "443:443"
+    environment:
+      NGINX_DOMAIN: ${APP_DOMAIN:-localhost}
     volumes:
-      # Serve uploaded files from the same storage volume as the app
       - app_storage:/var/www/html/storage:ro
+      # Shared volume: populated by app container, read by nginx
+      - public_build:/var/www/html/public/build:ro
+      # Let's Encrypt certificates (populated by certbot service)
+      - certbot_certs:/etc/letsencrypt:ro
+      # Certbot webroot for ACME challenge
+      - certbot_www:/var/www/certbot:ro
     depends_on:
-      - app
-      - reverb
+      app:
+        condition: service_healthy
+      reverb:
+        condition: service_started
     restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Certbot — issue & renew Let's Encrypt certificates
+  # Only activated with: docker compose --profile ssl run --rm certbot ...
+  # ---------------------------------------------------------------------------
+  certbot:
+    image: certbot/certbot:latest
+    profiles: [ssl]
+    volumes:
+      - certbot_certs:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    # Default command shows help. Override when running:
+    #   Issue:  docker compose --profile ssl run --rm certbot certonly \
+    #             --webroot -w /var/www/certbot \
+    #             -d yourdomain.com \
+    #             --agree-tos --email admin@yourdomain.com
+    #   Renew:  docker compose --profile ssl run --rm certbot renew
+    command: ["--help"]
 
   # ---------------------------------------------------------------------------
   # Horizon — processes queued jobs (Redis)
@@ -92,8 +123,8 @@ services:
       CONTAINER_ROLE: horizon
       REDIS_HOST: redis
     volumes:
-      - app_database:/var/www/html/database
       - app_storage:/var/www/html/storage
+      - public_build:/var/www/html/public/build
     depends_on:
       redis:
         condition: service_healthy
@@ -117,19 +148,43 @@ services:
       # Bind to all interfaces inside the container
       REVERB_SERVER_HOST: "0.0.0.0"
       REVERB_SERVER_PORT: "8080"
-      # External coordinates must match the Host header Nginx forwards
       REVERB_HOST: ${APP_DOMAIN:-localhost}
       REVERB_PORT: "80"
       REVERB_SCHEME: http
     volumes:
-      - app_database:/var/www/html/database
       - app_storage:/var/www/html/storage
+      - public_build:/var/www/html/public/build
     depends_on:
       redis:
         condition: service_healthy
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # MySQL — only started when DB_CONNECTION=mysql (profile: mysql)
+  # To use: add --profile mysql to docker compose commands, e.g:
+  #   docker compose --profile mysql up -d
+  # ---------------------------------------------------------------------------
+  mysql:
+    image: mysql:8.4
+    profiles: [mysql]
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_DATABASE: ${DB_DATABASE:-toko_online}
+      MYSQL_USER: ${DB_USERNAME:-laravel}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-secret}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
 volumes:
   redis_data:
-  app_database:
   app_storage:
+  public_build:
+  certbot_certs:
+  certbot_www:
+  mysql_data:
