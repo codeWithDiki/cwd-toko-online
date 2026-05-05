@@ -7,8 +7,10 @@ secrets:
   #     "dikiakbarasyidiq.dev": "<license_key>"
   #   }
   # }
+  # If auth.json doesn't exist, set COMPOSER_AUTH in .env instead.
+  # The stub file is used as a placeholder so Docker doesn't error on missing file.
   composer_auth:
-    file: ./auth.json
+    file: ${COMPOSER_AUTH_FILE:-./auth.json.stub}
 
 services:
 
@@ -37,6 +39,7 @@ services:
         - composer_auth
       args:
         # Diambil otomatis dari .env di project root
+        COMPOSER_AUTH: ${COMPOSER_AUTH:-}
         VITE_APP_NAME: ${APP_NAME:-CodeWithDiki Toko Online}
         VITE_REVERB_APP_KEY: ${REVERB_APP_KEY:-laravel-herd}
         VITE_REVERB_HOST: ${REVERB_HOST:-localhost}
@@ -71,6 +74,8 @@ services:
       target: webserver
       secrets:
         - composer_auth
+      args:
+        COMPOSER_AUTH: ${COMPOSER_AUTH:-}
     ports:
       - "80:80"
       - "443:443"
@@ -118,6 +123,8 @@ services:
       target: runtime
       secrets:
         - composer_auth
+      args:
+        COMPOSER_AUTH: ${COMPOSER_AUTH:-}
     env_file: .env
     environment:
       CONTAINER_ROLE: horizon
@@ -141,6 +148,8 @@ services:
       target: runtime
       secrets:
         - composer_auth
+      args:
+        COMPOSER_AUTH: ${COMPOSER_AUTH:-}
     env_file: .env
     environment:
       CONTAINER_ROLE: reverb

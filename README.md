@@ -161,13 +161,17 @@ cd toko-online
 
 ### 2. Siapkan Kredensial Private Package
 
-Paket `codewithdiki/*` di-host di `https://dikiakbarasyidiq.dev`. Buat file `auth.json` di root project dengan **license key** yang didapat dari [https://dikiakbarasyidiq.dev/auth/register](https://dikiakbarasyidiq.dev/auth/register):
+Paket `codewithdiki/*` di-host di `https://dikiakbarasyidiq.dev`. Dapatkan **license key** dari [https://dikiakbarasyidiq.dev/auth/register](https://dikiakbarasyidiq.dev/auth/register), lalu pilih salah satu metode berikut sesuai environment:
+
+#### Opsi A — `auth.json` (Lokal / Docker Compose)
+
+Cara paling aman untuk development lokal. Token tidak pernah masuk ke image layer karena dibaca via BuildKit secret.
 
 ```bash
 composer config bearer.dikiakbarasyidiq.dev <license_key>
 ```
 
-Perintah tersebut akan membuat (atau mengupdate) file `auth.json` seperti ini:
+Perintah tersebut akan membuat (atau mengupdate) file `auth.json` di root project seperti ini:
 
 ```json
 {
@@ -177,7 +181,22 @@ Perintah tersebut akan membuat (atau mengupdate) file `auth.json` seperti ini:
 }
 ```
 
-> File ini sudah masuk `.gitignore` dan `.dockerignore` — **jangan pernah di-commit**.
+> File ini sudah masuk `.gitignore` — **jangan pernah di-commit**.
+
+#### Opsi B — `COMPOSER_AUTH` di `.env` (Helipod / CI / Platform tanpa akses file sistem)
+
+Untuk platform cloud seperti **Helipod**, **Railway**, **Fly.io**, atau CI pipeline yang tidak bisa menyediakan file `auth.json` secara fisik, gunakan environment variable `COMPOSER_AUTH`. Tambahkan baris berikut ke `.env`:
+
+```dotenv
+COMPOSER_AUTH='{"bearer":{"dikiakbarasyidiq.dev":"<license_key>"}}'
+```
+
+Variable ini dibaca sebagai build arg saat `docker compose build` dan menjadi prioritas utama — `auth.json` tidak dibutuhkan sama sekali.
+
+> **Urutan prioritas** saat build:
+> 1. `COMPOSER_AUTH` build arg (dari `.env` atau platform secrets) — **tertinggi**
+> 2. `auth.json` via BuildKit secret (`docker compose build` lokal)
+> 3. `auth.json` di build context (fallback `docker build` biasa)
 
 ### 3. Siapkan File Environment
 
@@ -229,11 +248,11 @@ docker compose build
 docker compose up -d
 ```
 
-BuildKit akan otomatis membaca `auth.json` sebagai secret saat instalasi Composer — token tidak pernah tersimpan di dalam image layer.
+Saat build, Composer akan mengautentikasi ke `dikiakbarasyidiq.dev` menggunakan kredensial dari salah satu metode di langkah 2. Token **tidak pernah tersimpan** di dalam image layer.
 
-> Kalau deploy ke domain tertentu (bukan `localhost`), pass domain sebagai build arg agar URL Reverb ikut terbake ke dalam aset JS:
-> ```bash
-> docker compose build --build-arg VITE_REVERB_HOST=yourdomain.com
+> Kalau deploy ke domain tertentu (bukan `localhost`), pastikan `APP_DOMAIN` sudah diset di `.env` sebelum build agar URL Reverb ikut terbake ke dalam aset JS:
+> ```dotenv
+> APP_DOMAIN=yourdomain.com
 > ```
 
 ### 5. Generate Application Key

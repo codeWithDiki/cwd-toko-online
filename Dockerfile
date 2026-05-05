@@ -9,10 +9,22 @@ WORKDIR /app
 
 COPY composer.json composer.lock ./
 
-# Mount auth.json as a BuildKit secret so the token is NEVER baked into any layer.
-# Build with: docker compose build --secret id=composer_auth,src=auth.json
-# auth.json should contain credentials for dikiakbarasyidiq.dev (or your Satis URL).
-RUN --mount=type=secret,id=composer_auth,dst=auth.json \
+# Auth is resolved in this priority order:
+#   1. COMPOSER_AUTH build ARG — for platforms like Helipod that inject secrets
+#      as build args. Set it to the raw JSON content of auth.json:
+#      {"bearer":{"dikiakbarasyidiq.dev":"<license_key>"}}
+#   2. BuildKit secret file (local / docker compose) — never baked into layers
+#      Secret id=composer_auth maps to ./auth.json via docker-compose.yml
+#   3. auth.json copied into the build context (fallback for plain docker build)
+ARG COMPOSER_AUTH=""
+RUN --mount=type=secret,id=composer_auth,dst=/run/secrets/composer_auth \
+    if [ -n "$COMPOSER_AUTH" ]; then \
+        : ; \
+    elif [ -f /run/secrets/composer_auth ] && [ -s /run/secrets/composer_auth ]; then \
+        export COMPOSER_AUTH="$(cat /run/secrets/composer_auth)"; \
+    elif [ -f auth.json ] && [ -s auth.json ]; then \
+        export COMPOSER_AUTH="$(cat auth.json)"; \
+    fi && \
     composer install \
     --no-dev \
     --optimize-autoloader \
