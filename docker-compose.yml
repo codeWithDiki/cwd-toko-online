@@ -81,6 +81,9 @@ services:
       - "443:443"
     environment:
       NGINX_DOMAIN: ${APP_DOMAIN:-localhost}
+      NGINX_APP_HOST: app
+      NGINX_REVERB_HOST: reverb
+      NGINX_REVERB_PORT: "8080"
     volumes:
       - app_storage:/var/www/html/storage:ro
       # Shared volume: populated by app container, read by nginx
