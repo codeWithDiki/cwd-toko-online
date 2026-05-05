@@ -1,7 +1,17 @@
 #!/bin/sh
 set -e
 
-echo "[standalone] Starting setup..."
+echo "[standalone] Starting all-in-one container (nginx + php-fpm + redis + reverb + horizon)..."
+
+# ---------------------------------------------------------------------------
+# Defaults for standalone mode — can be overridden via platform env vars.
+# If an external Redis is set in the platform, those values take precedence.
+# ---------------------------------------------------------------------------
+export REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
+export REDIS_PORT="${REDIS_PORT:-6379}"
+# In standalone, Reverb always binds to loopback — nginx proxies it internally.
+export REVERB_SERVER_HOST="127.0.0.1"
+export REVERB_SERVER_PORT="${REVERB_SERVER_PORT:-8080}"
 
 # ---------------------------------------------------------------------------
 # Storage & bootstrap directories
@@ -37,6 +47,18 @@ if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Start Redis in background for use during Laravel bootstrap
+# Supervisord will take over managing it after exec.
+# ---------------------------------------------------------------------------
+echo "[standalone] Starting Redis (bootstrap)..."
+redis-server --daemonize yes --loglevel warning
+# Wait until Redis is ready
+until redis-cli ping 2>/dev/null | grep -q PONG; do
+    sleep 0.2
+done
+echo "[standalone] Redis ready."
+
+# ---------------------------------------------------------------------------
 # Laravel bootstrap
 # ---------------------------------------------------------------------------
 echo "[standalone] Running migrations..."
@@ -53,19 +75,20 @@ if [ "${APP_ENV}" = "production" ]; then
     php artisan event:cache
 fi
 
+# Stop the bootstrap Redis — supervisord will restart it as a managed process
+redis-cli shutdown nosave 2>/dev/null || true
+sleep 0.5
+
 # ---------------------------------------------------------------------------
-# Nginx config generation
-# In standalone mode, php-fpm and reverb are on localhost (same container).
+# Nginx config generation — all upstreams are localhost in standalone mode
 # ---------------------------------------------------------------------------
 DOMAIN="${NGINX_DOMAIN:-localhost}"
 CERT_PATH="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
 
-export NGINX_APP_HOST="${NGINX_APP_HOST:-127.0.0.1}"
-export NGINX_REVERB_HOST="${NGINX_REVERB_HOST:-127.0.0.1}"
-export NGINX_REVERB_PORT="${NGINX_REVERB_PORT:-8080}"
+export NGINX_APP_HOST="127.0.0.1"
+export NGINX_REVERB_HOST="127.0.0.1"
+export NGINX_REVERB_PORT="${REVERB_SERVER_PORT}"
 export NGINX_RESOLVER="${NGINX_RESOLVER:-$(grep '^nameserver' /etc/resolv.conf | head -1 | awk '{print $2}')}"
-
-echo "[standalone] Resolver: ${NGINX_RESOLVER}, FPM: ${NGINX_APP_HOST}, Reverb: ${NGINX_REVERB_HOST}:${NGINX_REVERB_PORT}"
 
 if [ -f "$CERT_PATH" ]; then
     echo "[standalone] SSL certificate found — enabling HTTPS mode."
@@ -80,7 +103,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Start supervisord — manages php-fpm + nginx
+# Hand off to supervisord — manages redis, php-fpm, nginx, reverb, horizon
 # ---------------------------------------------------------------------------
-echo "[standalone] Starting supervisord..."
+echo "[standalone] Handing off to supervisord..."
 exec supervisord -c /etc/supervisord.conf
