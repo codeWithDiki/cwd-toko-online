@@ -148,3 +148,34 @@ ENTRYPOINT ["/docker-entrypoint-nginx.sh"]
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
     CMD wget -qO- http://localhost/healthz || exit 1
 EXPOSE 80 443
+
+# =============================================================================
+# Stage 5: Standalone — Nginx + PHP-FPM in a single container
+# For platforms like Helipod that support only one service per deployment.
+# Usage: docker build --target standalone -t myapp .
+# Set CONTAINER_ROLE=app (default) — migrations run on startup.
+# =============================================================================
+FROM runtime AS standalone
+
+# Install nginx, supervisor, and gettext (for envsubst)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nginx \
+    supervisor \
+    gettext-base \
+    && rm -rf /var/lib/apt/lists/*
+
+# Remove default nginx site so our config is the only one
+RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf
+
+# Copy nginx config templates
+COPY docker/nginx/templates /etc/nginx/templates
+
+# Copy supervisord config and standalone entrypoint
+COPY docker/supervisord.conf /etc/supervisord.conf
+COPY docker/php/entrypoint-standalone.sh /entrypoint-standalone.sh
+RUN chmod +x /entrypoint-standalone.sh
+
+ENTRYPOINT ["/entrypoint-standalone.sh"]
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
+    CMD wget -qO- http://localhost/healthz || exit 1
+EXPOSE 80
