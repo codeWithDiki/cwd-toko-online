@@ -4,7 +4,8 @@ set -e
 DOMAIN="${NGINX_DOMAIN:-localhost}"
 CERT_PATH="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
 
-# Upstream hostnames — override in Helipod via environment variables
+# Upstream hostnames — override in Helipod via environment variables.
+# If all services run in the same pod (single Helipod DNS), use localhost.
 export NGINX_APP_HOST="${NGINX_APP_HOST:-app}"
 export NGINX_REVERB_HOST="${NGINX_REVERB_HOST:-reverb}"
 export NGINX_REVERB_PORT="${NGINX_REVERB_PORT:-8080}"

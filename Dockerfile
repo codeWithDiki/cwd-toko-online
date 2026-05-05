@@ -137,11 +137,14 @@ COPY docker/nginx/templates /etc/nginx/templates
 COPY docker/nginx/entrypoint.sh /docker-entrypoint-nginx.sh
 RUN chmod +x /docker-entrypoint-nginx.sh
 
-# Copy static public files (css, fonts, favicons, etc.) from runtime.
-# public/build is intentionally excluded — it will be provided by the shared
-# public_build Docker volume (populated by the app container on startup).
+# Copy static public files (css, fonts, favicons, etc.) from runtime — including
+# public/build so assets are baked into the image for platforms like Helipod
+# where there is no shared volume between nginx and app pods.
+# In docker-compose, the public_build volume mount overlays this at runtime.
 COPY --from=runtime /var/www/html/public /var/www/html/public
-RUN rm -rf /var/www/html/public/build /var/www/html/public/build_init
+RUN rm -rf /var/www/html/public/build_init
 
 ENTRYPOINT ["/docker-entrypoint-nginx.sh"]
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
+    CMD wget -qO- http://localhost/healthz || exit 1
 EXPOSE 80 443
