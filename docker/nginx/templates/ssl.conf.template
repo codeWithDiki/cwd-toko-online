@@ -18,6 +18,9 @@ server {
     http2 on;
     server_name ${NGINX_DOMAIN};
 
+    # Resolver for dynamic upstream lookup (deferred to request time, not startup).
+    resolver ${NGINX_RESOLVER} valid=30s ipv6=off;
+
     ssl_certificate     /etc/letsencrypt/live/${NGINX_DOMAIN}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${NGINX_DOMAIN}/privkey.pem;
     ssl_trusted_certificate /etc/letsencrypt/live/${NGINX_DOMAIN}/chain.pem;
@@ -40,7 +43,8 @@ server {
 
     # Reverb WebSocket
     location ~ ^/(app|apps)/ {
-        proxy_pass http://${NGINX_REVERB_HOST}:${NGINX_REVERB_PORT};
+        set $reverb_upstream "${NGINX_REVERB_HOST}:${NGINX_REVERB_PORT}";
+        proxy_pass http://$reverb_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "Upgrade";
@@ -67,7 +71,8 @@ server {
     }
 
     location ~ \.php$ {
-        fastcgi_pass ${NGINX_APP_HOST}:9000;
+        set $fpm_upstream "${NGINX_APP_HOST}:9000";
+        fastcgi_pass $fpm_upstream;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
         include fastcgi_params;
