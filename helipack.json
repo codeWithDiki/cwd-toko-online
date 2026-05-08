@@ -4,7 +4,7 @@
     },
     "run": {
         "port": "80",
-        "after": "npm install && npm run build"
+        "after": "npm install && npm run build && php artisan optimize:clear && php artisan reverb:restart"
     },
     "spec": {
         "cpu": 1000,
