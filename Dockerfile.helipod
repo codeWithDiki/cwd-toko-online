@@ -43,8 +43,11 @@ ENV VITE_APP_NAME=$VITE_APP_NAME \
 
 RUN --mount=type=secret,id=build_env,dst=/run/secrets/build_env,required=false \
     if [ -f /run/secrets/build_env ]; then \
-        echo "Loading VITE vars from build_env secret..."; \
-        export $(grep -E '^VITE_' /run/secrets/build_env | sed 's/"//g' | xargs); \
+        echo "Loading vars from build_env secret..."; \
+        set -a; \
+        . /run/secrets/build_env; \
+        set +a; \
+        echo "VITE_REVERB_APP_KEY=${VITE_REVERB_APP_KEY}"; \
         echo "VITE_REVERB_HOST=${VITE_REVERB_HOST}"; \
         echo "VITE_REVERB_PORT=${VITE_REVERB_PORT}"; \
         echo "VITE_REVERB_SCHEME=${VITE_REVERB_SCHEME}"; \
