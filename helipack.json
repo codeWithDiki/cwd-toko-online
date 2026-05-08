@@ -3,7 +3,8 @@
         "dockerfile": "Dockerfile.helipod"
     },
     "run": {
-        "port": "80"
+        "port": "80",
+        "after": "npm install && npm run build"
     },
     "spec": {
         "cpu": 1000,
